@@ -1,0 +1,10 @@
+[[repos]]
+repo = "https://github.com/commitizen-tools/commitizen"
+rev = "v4.13.7"
+hooks = [
+    { id = "commitizen" },
+    {
+        id = "commitizen-branch",
+        stages = ["pre-push"],
+    },
+]
