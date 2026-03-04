@@ -2,6 +2,15 @@ use rand::seq::SliceRandom;
 use ratatui::layout::Rect;
 
 const FEEDBACK_TICKS: u8 = 90; // 1.5s at 60Hz
+const AUTO_SELECT_TICKS: u8 = 180; // ~3s at 60Hz
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ButtonAction {
+    Quit,
+    DealExtra,
+    Hint,
+    AutoSelect,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Color {
@@ -83,7 +92,6 @@ impl Card {
     pub fn number(&self) -> Number { self.number }
 }
 
-/// Check if three cards form a valid SET.
 pub fn is_valid_set(a: &Card, b: &Card, c: &Card) -> bool {
     let valid_attr = |x: u8, y: u8, z: u8| -> bool {
         (x == y && y == z) || (x != y && y != z && x != z)
@@ -133,6 +141,9 @@ pub struct Game {
     pub last_checked: Vec<usize>,
     pub last_input: InputMethod,
     pub card_areas: Vec<Rect>,
+    pub button_areas: Vec<(ButtonAction, Rect)>,
+    pub hint: Option<usize>,
+    pub auto_select_ticks: u8,
 }
 
 impl Default for Game {
@@ -160,10 +171,19 @@ impl Game {
             last_checked: Vec::new(),
             last_input: InputMethod::default(),
             card_areas: Vec::new(),
+            button_areas: Vec::new(),
+            hint: None,
+            auto_select_ticks: 0,
         }
     }
 
     pub fn tick(&mut self) {
+        if self.auto_select_ticks > 0 {
+            self.auto_select_ticks -= 1;
+            if self.auto_select_ticks == 0 && self.selected.len() == 3 {
+                self.check_selection();
+            }
+        }
         if self.feedback_ticks_remaining > 0 {
             self.feedback_ticks_remaining -= 1;
             if self.feedback_ticks_remaining == 0 {
@@ -197,6 +217,10 @@ impl Game {
     }
 
     pub fn toggle_selection(&mut self) {
+        if self.auto_select_ticks > 0 {
+            return;
+        }
+        self.hint = None;
         let idx = self.active_card_index();
         if let Some(idx) = idx {
             if idx >= self.board.len() {
@@ -259,21 +283,64 @@ impl Game {
         self.deck.len()
     }
 
-    pub fn is_game_over(&self) -> bool {
-        if !self.deck.is_empty() {
-            return false;
-        }
+    pub fn find_set(&self) -> Option<(usize, usize, usize)> {
         let len = self.board.len();
         for i in 0..len {
             for j in (i + 1)..len {
                 for k in (j + 1)..len {
                     if is_valid_set(&self.board[i], &self.board[j], &self.board[k]) {
-                        return false;
+                        return Some((i, j, k));
                     }
                 }
             }
         }
-        true
+        None
+    }
+
+    pub fn board_has_set(&self) -> bool {
+        self.find_set().is_some()
+    }
+
+    pub fn show_hint(&mut self) {
+        self.hint = None;
+        if let Some((i, _, _)) = self.find_set() {
+            self.hint = Some(i);
+        }
+    }
+
+    pub fn auto_select(&mut self) {
+        if self.auto_select_ticks > 0 {
+            return;
+        }
+        self.hint = None;
+        if let Some((i, j, k)) = self.find_set() {
+            self.selected = vec![i, j, k];
+            self.auto_select_ticks = AUTO_SELECT_TICKS;
+        }
+    }
+
+    pub fn is_game_over(&self) -> bool {
+        if !self.deck.is_empty() {
+            return false;
+        }
+        !self.board_has_set()
+    }
+
+    pub fn can_deal_extra(&self) -> bool {
+        !self.board_has_set() && !self.deck.is_empty()
+    }
+
+    pub fn deal_extra(&mut self) {
+        if !self.can_deal_extra() {
+            return;
+        }
+        for _ in 0..3 {
+            if let Some(card) = self.deck.pop() {
+                self.board.push(card);
+            } else {
+                break;
+            }
+        }
     }
 
     pub fn active_card_index(&self) -> Option<usize> {
@@ -293,5 +360,19 @@ impl Game {
 
     pub fn set_card_areas(&mut self, areas: Vec<Rect>) {
         self.card_areas = areas;
+    }
+
+    pub fn set_button_areas(&mut self, areas: Vec<(ButtonAction, Rect)>) {
+        self.button_areas = areas;
+    }
+
+    pub fn button_at(&self, x: u16, y: u16) -> Option<ButtonAction> {
+        self.button_areas.iter().find_map(|(action, rect)| {
+            if x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height {
+                Some(*action)
+            } else {
+                None
+            }
+        })
     }
 }

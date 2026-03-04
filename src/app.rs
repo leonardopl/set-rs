@@ -2,6 +2,7 @@ use std::{cell::RefCell, io::stdout};
 
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
 use ratatui::layout::Rect;
+use crate::game::ButtonAction;
 
 use crate::{
     event::{Event, EventHandler},
@@ -43,13 +44,16 @@ impl App {
         let events = EventHandler::new();
 
         let card_areas: RefCell<Vec<Rect>> = RefCell::new(Vec::new());
+        let btn_areas: RefCell<Vec<(ButtonAction, Rect)>> = RefCell::new(Vec::new());
 
         while self.running {
             terminal.draw(|frame| {
-                let areas = render_app(&self, frame.area(), frame.buffer_mut());
-                *card_areas.borrow_mut() = areas;
+                let (cards, buttons) = render_app(&self, frame.area(), frame.buffer_mut());
+                *card_areas.borrow_mut() = cards;
+                *btn_areas.borrow_mut() = buttons;
             })?;
             self.game.set_card_areas(card_areas.borrow().clone());
+            self.game.set_button_areas(btn_areas.borrow().clone());
             self.handle_events(&events)?;
         }
 
