@@ -1,11 +1,13 @@
-use std::io::stdout;
+use std::{cell::RefCell, io::stdout};
 
 use crossterm::event::{DisableMouseCapture, EnableMouseCapture};
+use ratatui::layout::Rect;
 
 use crate::{
     event::{Event, EventHandler},
     game::Game,
     input,
+    ui::render_app,
 };
 
 pub struct App {
@@ -23,7 +25,7 @@ impl App {
     pub fn new() -> Self {
         Self {
             running: true,
-            game: Game {},
+            game: Game::new(),
         }
     }
 
@@ -40,8 +42,14 @@ impl App {
 
         let events = EventHandler::new();
 
+        let card_areas: RefCell<Vec<Rect>> = RefCell::new(Vec::new());
+
         while self.running {
-            terminal.draw(|frame| frame.render_widget(&self, frame.area()))?;
+            terminal.draw(|frame| {
+                let areas = render_app(&self, frame.area(), frame.buffer_mut());
+                *card_areas.borrow_mut() = areas;
+            })?;
+            self.game.set_card_areas(card_areas.borrow().clone());
             self.handle_events(&events)?;
         }
 
