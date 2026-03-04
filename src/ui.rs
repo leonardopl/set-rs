@@ -5,11 +5,13 @@
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Rect},
+    style::{Color as RatColor, Style},
+    text::{Line, Span},
     widgets::{Block, BorderType, Paragraph, Widget, Wrap},
 };
 
 use crate::app::App;
-use crate::game::{Game, Card};
+use crate::game::{Card, Game, SetResult};
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
@@ -20,11 +22,10 @@ impl Widget for &App {
         .split(area);
 
         render_board(&self.game, layout[0], buf);
-        render_info(layout[1], buf);
+        render_info(&self.game, layout[1], buf);
     }
 }
 
-/// Render the app and return card areas for mouse hit testing
 pub fn render_app(app: &App, area: Rect, buf: &mut Buffer) -> Vec<Rect> {
     let layout = Layout::horizontal([
         Constraint::Percentage(85),
@@ -33,24 +34,60 @@ pub fn render_app(app: &App, area: Rect, buf: &mut Buffer) -> Vec<Rect> {
     .split(area);
 
     let card_areas = render_board(&app.game, layout[0], buf);
-    render_info(layout[1], buf);
+    render_info(&app.game, layout[1], buf);
     card_areas
 }
 
-fn render_info(area: Rect, buf: &mut Buffer) {
+fn render_info(game: &Game, area: Rect, buf: &mut Buffer) {
     let block = Block::bordered()
         .title("Info")
         .title_alignment(Alignment::Center)
         .border_type(BorderType::HeavyDoubleDashed);
 
-    let text = "Press `Esc`, `Ctrl-C`, `q`.";
+    let inner = block.inner(area);
+    block.render(area, buf);
 
-    let paragraph = Paragraph::new(text)
+    let mut lines: Vec<Line> = Vec::new();
+
+    lines.push(Line::from(format!("Score: {}", game.score)));
+    lines.push(Line::from(format!("Deck:  {}", game.deck_remaining())));
+    lines.push(Line::from(""));
+
+    match game.last_result {
+        Some(SetResult::Valid) => {
+            lines.push(Line::from(Span::styled(
+                "Valid SET!",
+                Style::default().fg(RatColor::LightGreen),
+            )));
+        }
+        Some(SetResult::Invalid) => {
+            lines.push(Line::from(Span::styled(
+                "Not a SET!",
+                Style::default().fg(RatColor::LightRed),
+            )));
+        }
+        None => {
+            lines.push(Line::from(""));
+        }
+    }
+
+    lines.push(Line::from(""));
+
+    if game.is_game_over() {
+        lines.push(Line::from(Span::styled(
+            "Game Over!",
+            Style::default().fg(RatColor::Yellow),
+        )));
+        lines.push(Line::from(""));
+    }
+
+    lines.push(Line::from("Arrows/WASD: move"));
+    lines.push(Line::from("Enter/Space: select"));
+    lines.push(Line::from("q/Esc: quit"));
+
+    Paragraph::new(lines)
         .wrap(Wrap { trim: true })
-        .block(block)
-        .centered();
-
-    paragraph.render(area, buf);
+        .render(inner, buf);
 }
 
 fn render_board(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<Rect> {
@@ -84,10 +121,16 @@ fn render_board(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<Rect> {
             let card_idx = row_idx * 4 + col_idx;
             card_areas.push(*col_area);
             if card_idx < game.board.len() {
+                let feedback = if game.last_checked.contains(&card_idx) {
+                    game.last_result
+                } else {
+                    None
+                };
                 let card_widget = CardWidget {
                     card: &game.board[card_idx],
                     is_active: game.is_active(card_idx),
                     is_selected: game.is_selected(card_idx),
+                    feedback,
                 };
                 card_widget.render(*col_area, buf);
             }
@@ -101,12 +144,12 @@ struct CardWidget<'a> {
     card: &'a Card,
     is_active: bool,
     is_selected: bool,
+    feedback: Option<SetResult>,
 }
 
 impl Widget for CardWidget<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         use crate::game::{Color, Fill, Number, Shape};
-        use ratatui::style::{Color as RatColor, Style};
 
         let symbol = match (self.card.shape(), self.card.fill()) {
             (Shape::Circle, Fill::Solid) => "●",
@@ -134,7 +177,14 @@ impl Widget for CardWidget<'_> {
             Color::Blue => RatColor::LightBlue,
         };
 
-        let (border_type, border_style) = if self.is_selected {
+        // Border priority: feedback (red/green) > selected (green) > active (yellow) > default
+        let (border_type, border_style) = if let Some(result) = self.feedback {
+            let fc = match result {
+                SetResult::Valid => RatColor::LightGreen,
+                SetResult::Invalid => RatColor::LightRed,
+            };
+            (BorderType::Double, Style::default().fg(fc))
+        } else if self.is_selected {
             (BorderType::Double, Style::default().fg(RatColor::Green))
         } else if self.is_active {
             (BorderType::Double, Style::default().fg(RatColor::Yellow))
@@ -152,7 +202,6 @@ impl Widget for CardWidget<'_> {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        // Fill inner area with background
         for y in inner.y..inner.y + inner.height {
             for x in inner.x..inner.x + inner.width {
                 buf[(x, y)].set_bg(bg_color);
@@ -163,7 +212,6 @@ impl Widget for CardWidget<'_> {
             .style(Style::default().fg(color).bg(bg_color))
             .alignment(Alignment::Center);
 
-        // Center vertically by calculating offset
         let text_area = Rect {
             x: inner.x,
             y: inner.y + inner.height / 2,

@@ -1,4 +1,7 @@
+use rand::seq::SliceRandom;
 use ratatui::layout::Rect;
+
+const FEEDBACK_TICKS: u8 = 90; // 1.5s at 60Hz
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Color {
@@ -29,6 +32,39 @@ pub enum Number {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SetResult {
+    Valid,
+    Invalid,
+}
+
+macro_rules! impl_index {
+    ($t:ty, $a:ident, $b:ident, $c:ident) => {
+        impl $t {
+            pub fn from_index(i: u8) -> Self {
+                match i {
+                    0 => Self::$a,
+                    1 => Self::$b,
+                    _ => Self::$c,
+                }
+            }
+
+            pub fn as_index(self) -> u8 {
+                match self {
+                    Self::$a => 0,
+                    Self::$b => 1,
+                    Self::$c => 2,
+                }
+            }
+        }
+    };
+}
+
+impl_index!(Color, Red, Green, Blue);
+impl_index!(Shape, Circle, Square, Diamond);
+impl_index!(Fill, Solid, Empty, Striped);
+impl_index!(Number, One, Two, Three);
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Card {
     pub color: Color,
     pub shape: Shape,
@@ -47,6 +83,37 @@ impl Card {
     pub fn number(&self) -> Number { self.number }
 }
 
+/// Check if three cards form a valid SET.
+pub fn is_valid_set(a: &Card, b: &Card, c: &Card) -> bool {
+    let valid_attr = |x: u8, y: u8, z: u8| -> bool {
+        (x == y && y == z) || (x != y && y != z && x != z)
+    };
+
+    valid_attr(a.color.as_index(), b.color.as_index(), c.color.as_index())
+        && valid_attr(a.shape.as_index(), b.shape.as_index(), c.shape.as_index())
+        && valid_attr(a.fill.as_index(), b.fill.as_index(), c.fill.as_index())
+        && valid_attr(a.number.as_index(), b.number.as_index(), c.number.as_index())
+}
+
+fn generate_deck() -> Vec<Card> {
+    let mut deck = Vec::with_capacity(81);
+    for c in 0..3u8 {
+        for s in 0..3u8 {
+            for f in 0..3u8 {
+                for n in 0..3u8 {
+                    deck.push(Card::new(
+                        Color::from_index(c),
+                        Shape::from_index(s),
+                        Fill::from_index(f),
+                        Number::from_index(n),
+                    ));
+                }
+            }
+        }
+    }
+    deck
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum InputMethod {
     #[default]
@@ -56,9 +123,14 @@ pub enum InputMethod {
 
 pub struct Game {
     pub board: Vec<Card>,
+    pub deck: Vec<Card>,
     pub focus: usize,
     pub hover: Option<usize>,
     pub selected: Vec<usize>,
+    pub score: usize,
+    pub last_result: Option<SetResult>,
+    pub feedback_ticks_remaining: u8,
+    pub last_checked: Vec<usize>,
     pub last_input: InputMethod,
     pub card_areas: Vec<Rect>,
 }
@@ -71,55 +143,50 @@ impl Default for Game {
 
 impl Game {
     pub fn new() -> Self {
-        let board: Vec<Card> = (0..12)
-            .map(|i| {
-                let color = match i % 3 {
-                    0 => Color::Red,
-                    1 => Color::Green,
-                    _ => Color::Blue,
-                };
-                let shape = match (i / 3) % 3 {
-                    0 => Shape::Circle,
-                    1 => Shape::Square,
-                    _ => Shape::Diamond,
-                };
-                let fill = match i % 3 {
-                    0 => Fill::Solid,
-                    1 => Fill::Empty,
-                    _ => Fill::Striped,
-                };
-                let number = match i % 3 {
-                    0 => Number::One,
-                    1 => Number::Two,
-                    _ => Number::Three,
-                };
-                Card::new(color, shape, fill, number)
-            })
-            .collect();
+        let mut deck = generate_deck();
+        deck.shuffle(&mut rand::rng());
+
+        let board: Vec<Card> = deck.split_off(deck.len() - 12);
 
         Self {
             board,
+            deck,
             focus: 0,
             hover: None,
             selected: Vec::new(),
+            score: 0,
+            last_result: None,
+            feedback_ticks_remaining: 0,
+            last_checked: Vec::new(),
             last_input: InputMethod::default(),
             card_areas: Vec::new(),
         }
     }
 
-    pub fn tick(&self) {}
+    pub fn tick(&mut self) {
+        if self.feedback_ticks_remaining > 0 {
+            self.feedback_ticks_remaining -= 1;
+            if self.feedback_ticks_remaining == 0 {
+                self.last_result = None;
+                self.last_checked.clear();
+            }
+        }
+    }
 
     pub fn move_focus(&mut self, dx: i32, dy: i32) {
         self.last_input = InputMethod::Keyboard;
-        let cols = 4;
-        let rows = 3;
-        let current_col = (self.focus % cols) as i32;
-        let current_row = (self.focus / cols) as i32;
+        let cols = 4i32;
+        let rows = self.board.len().div_ceil(4) as i32;
+        let current_col = (self.focus % cols as usize) as i32;
+        let current_row = (self.focus / cols as usize) as i32;
 
-        let new_col = (current_col + dx).rem_euclid(cols as i32) as usize;
+        let new_col = (current_col + dx).rem_euclid(cols) as usize;
         let new_row = (current_row + dy).rem_euclid(rows) as usize;
 
-        self.focus = new_row * cols + new_col;
+        let new_focus = new_row * cols as usize + new_col;
+        if new_focus < self.board.len() {
+            self.focus = new_focus;
+        }
     }
 
     pub fn update_hover(&mut self, x: u16, y: u16) {
@@ -132,15 +199,83 @@ impl Game {
     pub fn toggle_selection(&mut self) {
         let idx = self.active_card_index();
         if let Some(idx) = idx {
+            if idx >= self.board.len() {
+                return;
+            }
             if let Some(pos) = self.selected.iter().position(|&i| i == idx) {
                 self.selected.remove(pos);
-            } else {
+            } else if self.selected.len() < 3 {
                 self.selected.push(idx);
+                if self.selected.len() == 3 {
+                    self.check_selection();
+                }
             }
         }
     }
 
-    /// Get the currently active card index based on last input method
+    fn check_selection(&mut self) {
+        let indices = self.selected.clone();
+        let a = &self.board[indices[0]];
+        let b = &self.board[indices[1]];
+        let c = &self.board[indices[2]];
+
+        if is_valid_set(a, b, c) {
+            self.score += 1;
+            self.last_result = Some(SetResult::Valid);
+            self.feedback_ticks_remaining = FEEDBACK_TICKS;
+            self.last_checked.clear();
+            self.selected.clear();
+            self.remove_and_deal(indices[0], indices[1], indices[2]);
+        } else {
+            self.last_result = Some(SetResult::Invalid);
+            self.feedback_ticks_remaining = FEEDBACK_TICKS;
+            self.last_checked = indices;
+            self.selected.clear();
+        }
+    }
+
+    fn remove_and_deal(&mut self, i0: usize, i1: usize, i2: usize) {
+        let mut indices = [i0, i1, i2];
+        indices.sort_unstable_by(|a, b| b.cmp(a));
+
+        for &idx in &indices {
+            self.board.remove(idx);
+        }
+
+        while self.board.len() < 12 {
+            if let Some(card) = self.deck.pop() {
+                self.board.push(card);
+            } else {
+                break;
+            }
+        }
+
+        if !self.board.is_empty() && self.focus >= self.board.len() {
+            self.focus = self.board.len() - 1;
+        }
+    }
+
+    pub fn deck_remaining(&self) -> usize {
+        self.deck.len()
+    }
+
+    pub fn is_game_over(&self) -> bool {
+        if !self.deck.is_empty() {
+            return false;
+        }
+        let len = self.board.len();
+        for i in 0..len {
+            for j in (i + 1)..len {
+                for k in (j + 1)..len {
+                    if is_valid_set(&self.board[i], &self.board[j], &self.board[k]) {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
+    }
+
     pub fn active_card_index(&self) -> Option<usize> {
         match self.last_input {
             InputMethod::Keyboard => Some(self.focus),
@@ -148,7 +283,6 @@ impl Game {
         }
     }
 
-    /// Check if a card is the active one (for rendering)
     pub fn is_active(&self, idx: usize) -> bool {
         self.active_card_index() == Some(idx)
     }
