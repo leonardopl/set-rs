@@ -11,10 +11,10 @@ Personal project built to learn Rust, focusing on TUI rendering, game logic, and
 - Full 81-card SET deck (4 attributes: color, shape, fill, number)
 - Keyboard and mouse input
 - Visual feedback for valid/invalid sets (green/red card borders)
-- Score tracking and deck counter
+- Score tracking, deck counter and time counter
 - **Hint**: progressively highlights cards from a valid set (one more per press, up to all three)
-- **Auto-select**: finds and selects a valid set automatically
-- **Deal extra**: deal extra cards when no SET exists on the board
+- **Auto select**: finds and selects a valid set automatically
+- Automatically deal extra cards when no SET exists on the board
 - Clickable UI buttons in the info panel
 - Dynamic board layout (rows scale with card count)
 - Game over detection
