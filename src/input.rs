@@ -25,7 +25,6 @@ pub fn handle_key_events(app: &mut App, key_event: KeyEvent) -> color_eyre::Resu
             KeyCode::Up | KeyCode::Char('w') => app.game.move_focus(0, -1),
             KeyCode::Down | KeyCode::Char('s') => app.game.move_focus(0, 1),
             KeyCode::Enter | KeyCode::Char(' ') => app.game.toggle_selection(),
-            KeyCode::Char('e') => app.game.deal_extra(),
             KeyCode::Char('h') => app.game.show_hint(),
             KeyCode::Char('f') => app.game.auto_select(),
             _ => {}
@@ -44,7 +43,6 @@ pub fn handle_mouse_events(app: &mut App, mouse_event: MouseEvent) -> color_eyre
             if let Some(action) = app.game.button_at(x, y) {
                 match action {
                     ButtonAction::Quit => app.quit(),
-                    ButtonAction::DealExtra => app.game.deal_extra(),
                     ButtonAction::Hint => app.game.show_hint(),
                     ButtonAction::AutoSelect => app.game.auto_select(),
                 }

@@ -12,7 +12,7 @@ Personal project built to learn Rust, focusing on TUI rendering, game logic, and
 - Keyboard and mouse input
 - Visual feedback for valid/invalid sets (green/red card borders)
 - Score tracking and deck counter
-- **Hint**: highlights one card from a valid set
+- **Hint**: progressively highlights cards from a valid set (one more per press, up to all three)
 - **Auto-select**: finds and selects a valid set automatically
 - **Deal extra**: deal extra cards when no SET exists on the board
 - Clickable UI buttons in the info panel
@@ -25,7 +25,7 @@ Personal project built to learn Rust, focusing on TUI rendering, game logic, and
 |---|---|
 | Move | Arrow keys / `W` `A` `S` `D` |
 | Select card | `Enter` / `Space` |
-| Hint | `H` |
+| Hint (progressive) | `H` |
 | Auto-select | `X` |
 | Deal extra | `E` |
 | Quit | `Q` / `Esc` |

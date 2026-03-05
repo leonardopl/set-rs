@@ -7,7 +7,6 @@ const AUTO_SELECT_TICKS: u8 = 180; // ~3s at 60Hz
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ButtonAction {
     Quit,
-    DealExtra,
     Hint,
     AutoSelect,
 }
@@ -23,7 +22,7 @@ pub enum Color {
 pub enum Shape {
     Circle,
     Square,
-    Diamond,
+    Triangle,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -69,7 +68,7 @@ macro_rules! impl_index {
 }
 
 impl_index!(Color, Red, Green, Blue);
-impl_index!(Shape, Circle, Square, Diamond);
+impl_index!(Shape, Circle, Square, Triangle);
 impl_index!(Fill, Solid, Empty, Striped);
 impl_index!(Number, One, Two, Three);
 
@@ -86,10 +85,6 @@ impl Card {
         Self { color, shape, fill, number }
     }
 
-    pub fn color(&self) -> Color { self.color }
-    pub fn shape(&self) -> Shape { self.shape }
-    pub fn fill(&self) -> Fill { self.fill }
-    pub fn number(&self) -> Number { self.number }
 }
 
 pub fn is_valid_set(a: &Card, b: &Card, c: &Card) -> bool {
@@ -101,6 +96,20 @@ pub fn is_valid_set(a: &Card, b: &Card, c: &Card) -> bool {
         && valid_attr(a.shape.as_index(), b.shape.as_index(), c.shape.as_index())
         && valid_attr(a.fill.as_index(), b.fill.as_index(), c.fill.as_index())
         && valid_attr(a.number.as_index(), b.number.as_index(), c.number.as_index())
+}
+
+fn board_has_set_static(board: &[Card]) -> bool {
+    let len = board.len();
+    for i in 0..len {
+        for j in (i + 1)..len {
+            for k in (j + 1)..len {
+                if is_valid_set(&board[i], &board[j], &board[k]) {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
 
 fn generate_deck() -> Vec<Card> {
@@ -142,7 +151,7 @@ pub struct Game {
     pub last_input: InputMethod,
     pub card_areas: Vec<Rect>,
     pub button_areas: Vec<(ButtonAction, Rect)>,
-    pub hint: Option<usize>,
+    pub hint: Vec<usize>,
     pub auto_select_ticks: u8,
 }
 
@@ -157,7 +166,16 @@ impl Game {
         let mut deck = generate_deck();
         deck.shuffle(&mut rand::rng());
 
-        let board: Vec<Card> = deck.split_off(deck.len() - 12);
+        let mut board: Vec<Card> = deck.split_off(deck.len() - 12);
+
+        // Auto-deal extra cards if no valid SET exists on the initial board
+        while !deck.is_empty() && !board_has_set_static(&board) {
+            for _ in 0..3 {
+                if let Some(card) = deck.pop() {
+                    board.push(card);
+                }
+            }
+        }
 
         Self {
             board,
@@ -172,7 +190,7 @@ impl Game {
             last_input: InputMethod::default(),
             card_areas: Vec::new(),
             button_areas: Vec::new(),
-            hint: None,
+            hint: Vec::new(),
             auto_select_ticks: 0,
         }
     }
@@ -195,8 +213,8 @@ impl Game {
 
     pub fn move_focus(&mut self, dx: i32, dy: i32) {
         self.last_input = InputMethod::Keyboard;
-        let cols = 4i32;
-        let rows = self.board.len().div_ceil(4) as i32;
+        let cols = self.board.len().div_ceil(3) as i32;
+        let rows = 3i32;
         let current_col = (self.focus % cols as usize) as i32;
         let current_row = (self.focus / cols as usize) as i32;
 
@@ -220,7 +238,7 @@ impl Game {
         if self.auto_select_ticks > 0 {
             return;
         }
-        self.hint = None;
+        self.hint.clear();
         let idx = self.active_card_index();
         if let Some(idx) = idx {
             if idx >= self.board.len() {
@@ -250,6 +268,7 @@ impl Game {
             self.last_checked.clear();
             self.selected.clear();
             self.remove_and_deal(indices[0], indices[1], indices[2]);
+            self.auto_deal();
         } else {
             self.last_result = Some(SetResult::Invalid);
             self.feedback_ticks_remaining = FEEDBACK_TICKS;
@@ -302,9 +321,19 @@ impl Game {
     }
 
     pub fn show_hint(&mut self) {
-        self.hint = None;
-        if let Some((i, _, _)) = self.find_set() {
-            self.hint = Some(i);
+        if let Some((i, j, k)) = self.find_set() {
+            let set_cards = [i, j, k];
+            if !self.hint.iter().all(|h| set_cards.contains(h)) {
+                self.hint.clear();
+            }
+            if self.hint.len() < 3 {
+                for &idx in &set_cards {
+                    if !self.hint.contains(&idx) {
+                        self.hint.push(idx);
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -312,7 +341,7 @@ impl Game {
         if self.auto_select_ticks > 0 {
             return;
         }
-        self.hint = None;
+        self.hint.clear();
         if let Some((i, j, k)) = self.find_set() {
             self.selected = vec![i, j, k];
             self.auto_select_ticks = AUTO_SELECT_TICKS;
@@ -326,19 +355,12 @@ impl Game {
         !self.board_has_set()
     }
 
-    pub fn can_deal_extra(&self) -> bool {
-        !self.board_has_set() && !self.deck.is_empty()
-    }
-
-    pub fn deal_extra(&mut self) {
-        if !self.can_deal_extra() {
-            return;
-        }
-        for _ in 0..3 {
-            if let Some(card) = self.deck.pop() {
-                self.board.push(card);
-            } else {
-                break;
+    fn auto_deal(&mut self) {
+        while !self.board_has_set() && !self.deck.is_empty() {
+            for _ in 0..3 {
+                if let Some(card) = self.deck.pop() {
+                    self.board.push(card);
+                }
             }
         }
     }
