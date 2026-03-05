@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use rand::seq::SliceRandom;
 use ratatui::layout::Rect;
 
@@ -153,6 +155,7 @@ pub struct Game {
     pub button_areas: Vec<(ButtonAction, Rect)>,
     pub hint: Vec<usize>,
     pub auto_select_ticks: u8,
+    pub turn_start: Instant,
 }
 
 impl Default for Game {
@@ -192,6 +195,7 @@ impl Game {
             button_areas: Vec::new(),
             hint: Vec::new(),
             auto_select_ticks: 0,
+            turn_start: Instant::now(),
         }
     }
 
@@ -263,6 +267,7 @@ impl Game {
 
         if is_valid_set(a, b, c) {
             self.score += 1;
+            self.turn_start = Instant::now();
             self.last_result = Some(SetResult::Valid);
             self.feedback_ticks_remaining = FEEDBACK_TICKS;
             self.last_checked.clear();

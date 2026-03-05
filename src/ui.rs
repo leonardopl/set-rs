@@ -41,6 +41,8 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
 
     lines.push(Line::from(format!("Score: {}", game.score)));
     lines.push(Line::from(format!("Deck:  {}", game.deck_remaining())));
+    let elapsed = game.turn_start.elapsed().as_secs();
+    lines.push(Line::from(format!("Time:  {}:{:02}", elapsed / 60, elapsed % 60)));
     lines.push(Line::from(""));
 
     match game.last_result {

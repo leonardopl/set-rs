@@ -4,7 +4,7 @@ A terminal-based implementation of the [SET card game](https://en.wikipedia.org/
 
 Personal project built to learn Rust, focusing on TUI rendering, game logic, and event-driven architecture.
 
-<!-- ![screenshot](assets/screenshot.png) -->
+![screenshot](assets/screenshot.jpg)
 
 ## Features
 
