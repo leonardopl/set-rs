@@ -3,28 +3,11 @@ use ratatui::{
     layout::{Alignment, Constraint, Layout, Rect},
     style::{Color as RatColor, Style},
     text::{Line, Span},
-    widgets::{Block, BorderType, Paragraph, Widget, Wrap},
+    widgets::{Block, BorderType, Paragraph, Widget},
 };
 
 use crate::app::App;
 use crate::game::{ButtonAction, Card, Game, SetResult};
-
-impl Widget for &App {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        Block::default()
-            .style(Style::default().bg(RatColor::Black))
-            .render(area, buf);
-
-        let layout = Layout::horizontal([
-            Constraint::Percentage(85),
-            Constraint::Fill(1),
-        ])
-        .split(area);
-
-        render_board(&self.game, layout[0], buf);
-        render_info(&self.game, layout[1], buf);
-    }
-}
 
 pub fn render_app(app: &App, area: Rect, buf: &mut Buffer) -> (Vec<Rect>, Vec<(ButtonAction, Rect)>) {
     // Fill the entire area with black background
@@ -33,8 +16,8 @@ pub fn render_app(app: &App, area: Rect, buf: &mut Buffer) -> (Vec<Rect>, Vec<(B
         .render(area, buf);
 
     let layout = Layout::horizontal([
-        Constraint::Percentage(85),
         Constraint::Fill(1),
+        Constraint::Length(25),
     ])
     .split(area);
 
@@ -172,9 +155,7 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
     lines.push(Line::from("e: deal extra"));
     lines.push(Line::from("q/Esc: quit"));
 
-    Paragraph::new(lines)
-        .wrap(Wrap { trim: true })
-        .render(inner, buf);
+    Paragraph::new(lines).render(inner, buf);
 
     button_areas
 }
