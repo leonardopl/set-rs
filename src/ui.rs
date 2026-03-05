@@ -74,8 +74,8 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
     if !game.is_game_over() {
         let hint_line = lines.len() as u16;
         lines.push(Line::from(Span::styled(
-            "[ Hint ]",
-            Style::default().fg(RatColor::Cyan),
+            "  Hint  ",
+            Style::default().fg(RatColor::Black).bg(RatColor::Cyan),
         )));
         let hint_y = inner.y + hint_line;
         if hint_y < inner.y + inner.height {
@@ -90,8 +90,8 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
 
         let auto_line = lines.len() as u16;
         lines.push(Line::from(Span::styled(
-            "[ Auto Select ]",
-            Style::default().fg(RatColor::Magenta),
+            "  Auto Select  ",
+            Style::default().fg(RatColor::Black).bg(RatColor::Magenta),
         )));
         let auto_y = inner.y + auto_line;
         if auto_y < inner.y + inner.height {
@@ -107,8 +107,8 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
 
     let quit_line = lines.len() as u16;
     lines.push(Line::from(Span::styled(
-        "[ Quit ]",
-        Style::default().fg(RatColor::Red),
+        "  Quit  ",
+        Style::default().fg(RatColor::White).bg(RatColor::Red),
     )));
     let quit_y = inner.y + quit_line;
     if quit_y < inner.y + inner.height {
