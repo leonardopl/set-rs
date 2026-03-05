@@ -11,6 +11,10 @@ use crate::game::{ButtonAction, Card, Game, SetResult};
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
+        Block::default()
+            .style(Style::default().bg(RatColor::Black))
+            .render(area, buf);
+
         let layout = Layout::horizontal([
             Constraint::Percentage(85),
             Constraint::Fill(1),
@@ -23,6 +27,11 @@ impl Widget for &App {
 }
 
 pub fn render_app(app: &App, area: Rect, buf: &mut Buffer) -> (Vec<Rect>, Vec<(ButtonAction, Rect)>) {
+    // Fill the entire area with black background
+    Block::default()
+        .style(Style::default().bg(RatColor::Black))
+        .render(area, buf);
+
     let layout = Layout::horizontal([
         Constraint::Percentage(85),
         Constraint::Fill(1),
@@ -39,7 +48,8 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
         .title("Info")
         .title_alignment(Alignment::Center)
         .border_type(BorderType::Plain)
-        .padding(ratatui::widgets::Padding::uniform(1));
+        .padding(ratatui::widgets::Padding::uniform(1))
+        .style(Style::default().bg(RatColor::Black));
 
     let inner = block.inner(area);
     block.render(area, buf);
@@ -173,7 +183,8 @@ fn render_board(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<Rect> {
     let block = Block::bordered()
         .title("Pattern Matching Game")
         .title_alignment(Alignment::Center)
-        .border_type(BorderType::Rounded);
+        .border_type(BorderType::Rounded)
+        .style(Style::default().bg(RatColor::Black));
 
     let inner = block.inner(area);
     block.render(area, buf);
