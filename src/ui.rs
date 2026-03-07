@@ -145,7 +145,7 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
 
 fn render_board(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<Rect> {
     let block = Block::bordered()
-        .title("Pattern Matching Game")
+        .title("set-rs")
         .title_alignment(Alignment::Center)
         .border_type(BorderType::Rounded)
         .style(Style::default().bg(RatColor::Rgb(0, 0, 0)));
