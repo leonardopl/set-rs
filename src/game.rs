@@ -1,4 +1,7 @@
+#[cfg(not(feature = "web"))]
 use std::time::Instant;
+#[cfg(feature = "web")]
+use web_time::Instant;
 
 use rand::seq::SliceRandom;
 use ratatui::layout::Rect;
@@ -100,18 +103,18 @@ pub fn is_valid_set(a: &Card, b: &Card, c: &Card) -> bool {
         && valid_attr(a.number.as_index(), b.number.as_index(), c.number.as_index())
 }
 
-fn board_has_set_static(board: &[Card]) -> bool {
+pub fn find_set_in(board: &[Card]) -> Option<(usize, usize, usize)> {
     let len = board.len();
     for i in 0..len {
         for j in (i + 1)..len {
             for k in (j + 1)..len {
                 if is_valid_set(&board[i], &board[j], &board[k]) {
-                    return true;
+                    return Some((i, j, k));
                 }
             }
         }
     }
-    false
+    None
 }
 
 fn generate_deck() -> Vec<Card> {
@@ -156,6 +159,8 @@ pub struct Game {
     pub hint: Vec<usize>,
     pub auto_select_ticks: u8,
     pub turn_start: Instant,
+    pub term_cols: u16,
+    pub term_rows: u16,
 }
 
 impl Default for Game {
@@ -172,7 +177,7 @@ impl Game {
         let mut board: Vec<Card> = deck.split_off(deck.len() - 12);
 
         // Auto-deal extra cards if no valid SET exists on the initial board
-        while !deck.is_empty() && !board_has_set_static(&board) {
+        while !deck.is_empty() && find_set_in(&board).is_none() {
             for _ in 0..3 {
                 if let Some(card) = deck.pop() {
                     board.push(card);
@@ -196,6 +201,8 @@ impl Game {
             hint: Vec::new(),
             auto_select_ticks: 0,
             turn_start: Instant::now(),
+            term_cols: 0,
+            term_rows: 0,
         }
     }
 
@@ -308,17 +315,7 @@ impl Game {
     }
 
     pub fn find_set(&self) -> Option<(usize, usize, usize)> {
-        let len = self.board.len();
-        for i in 0..len {
-            for j in (i + 1)..len {
-                for k in (j + 1)..len {
-                    if is_valid_set(&self.board[i], &self.board[j], &self.board[k]) {
-                        return Some((i, j, k));
-                    }
-                }
-            }
-        }
-        None
+        find_set_in(&self.board)
     }
 
     pub fn board_has_set(&self) -> bool {

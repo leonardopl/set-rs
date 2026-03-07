@@ -11,7 +11,7 @@ use crate::game::{ButtonAction, Card, Game, SetResult};
 
 pub fn render_app(app: &App, area: Rect, buf: &mut Buffer) -> (Vec<Rect>, Vec<(ButtonAction, Rect)>) {
     Block::default()
-        .style(Style::default().bg(RatColor::Black))
+        .style(Style::default().bg(RatColor::Rgb(0, 0, 0)))
         .render(area, buf);
 
     let layout = Layout::horizontal([
@@ -31,7 +31,7 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
         .title_alignment(Alignment::Center)
         .border_type(BorderType::Plain)
         .padding(ratatui::widgets::Padding::uniform(1))
-        .style(Style::default().bg(RatColor::Black));
+        .style(Style::default().bg(RatColor::Rgb(0, 0, 0)));
 
     let inner = block.inner(area);
     block.render(area, buf);
@@ -49,13 +49,13 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
         Some(SetResult::Valid) => {
             lines.push(Line::from(Span::styled(
                 "Valid SET!",
-                Style::default().fg(RatColor::LightGreen),
+                Style::default().fg(RatColor::Rgb(80, 200, 120)),
             )));
         }
         Some(SetResult::Invalid) => {
             lines.push(Line::from(Span::styled(
                 "Not a SET!",
-                Style::default().fg(RatColor::LightRed),
+                Style::default().fg(RatColor::Rgb(255, 107, 107)),
             )));
         }
         None => {
@@ -68,7 +68,7 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
     if game.is_game_over() {
         lines.push(Line::from(Span::styled(
             "Game Over!",
-            Style::default().fg(RatColor::Yellow),
+            Style::default().fg(RatColor::Rgb(241, 196, 15)),
         )));
         lines.push(Line::from(""));
     }
@@ -77,7 +77,7 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
         let hint_line = lines.len() as u16;
         lines.push(Line::from(Span::styled(
             "  Hint  ",
-            Style::default().fg(RatColor::Black).bg(RatColor::Cyan),
+            Style::default().fg(RatColor::Rgb(0, 0, 0)).bg(RatColor::Rgb(0, 210, 211)),
         )));
         let hint_y = inner.y + hint_line;
         if hint_y < inner.y + inner.height {
@@ -93,7 +93,7 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
         let auto_line = lines.len() as u16;
         lines.push(Line::from(Span::styled(
             "  Auto Select  ",
-            Style::default().fg(RatColor::Black).bg(RatColor::Magenta),
+            Style::default().fg(RatColor::Rgb(0, 0, 0)).bg(RatColor::Rgb(186, 85, 211)),
         )));
         let auto_y = inner.y + auto_line;
         if auto_y < inner.y + inner.height {
@@ -110,7 +110,7 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
     let quit_line = lines.len() as u16;
     lines.push(Line::from(Span::styled(
         "  Quit  ",
-        Style::default().fg(RatColor::White).bg(RatColor::Red),
+        Style::default().fg(RatColor::Rgb(255, 255, 255)).bg(RatColor::Rgb(192, 57, 43)),
     )));
     let quit_y = inner.y + quit_line;
     if quit_y < inner.y + inner.height {
@@ -139,7 +139,7 @@ fn render_board(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<Rect> {
         .title("Pattern Matching Game")
         .title_alignment(Alignment::Center)
         .border_type(BorderType::Rounded)
-        .style(Style::default().bg(RatColor::Black));
+        .style(Style::default().bg(RatColor::Rgb(0, 0, 0)));
 
     let inner = block.inner(area);
     block.render(area, buf);
@@ -248,8 +248,6 @@ fn triangle_mask(width: usize, height: usize) -> Vec<Vec<CellKind>> {
     let w = width as f64;
     let h = height as f64;
     for (r, row) in mask.iter_mut().enumerate().take(height) {
-        // At row r (0=top, height-1=bottom), the triangle spans from inset to width-inset.
-        // Width fraction at this row: (r + 1) / height
         let frac = (r as f64 + 1.0) / h;
         let half_span = (frac * w) / 2.0;
         let center = w / 2.0;
@@ -259,7 +257,6 @@ fn triangle_mask(width: usize, height: usize) -> Vec<Vec<CellKind>> {
             *cell = CellKind::Interior;
         }
     }
-    // Mark borders
     let mut border = vec![vec![false; width]; height];
     for r in 0..height {
         for c in 0..width {
@@ -323,7 +320,7 @@ fn render_shape_row(
     pixel_y_top: u16,
     inner: Rect,
 ) {
-    let bg = RatColor::Black;
+    let bg = RatColor::Rgb(0, 0, 0);
     for (i, &top_kind) in top_row.iter().enumerate() {
         let px = term_x + i as u16;
         if px >= inner.x + inner.width {
@@ -376,15 +373,15 @@ impl Widget for CardWidget<'_> {
         };
 
         let card_color = match self.card.color {
-            Color::Red => RatColor::LightRed,
-            Color::Green => RatColor::LightGreen,
-            Color::Blue => RatColor::LightBlue,
+            Color::Red => RatColor::Rgb(255, 107, 107),
+            Color::Green => RatColor::Rgb(80, 200, 120),
+            Color::Blue => RatColor::Rgb(100, 149, 237),
         };
 
         let dim_color = match self.card.color {
-            Color::Red => RatColor::Rgb(100, 0, 0),
-            Color::Green => RatColor::Rgb(0, 80, 0),
-            Color::Blue => RatColor::Rgb(0, 0, 100),
+            Color::Red => RatColor::Rgb(80, 30, 30),
+            Color::Green => RatColor::Rgb(20, 65, 35),
+            Color::Blue => RatColor::Rgb(30, 40, 80),
         };
 
         let fill = self.card.fill;
@@ -392,21 +389,21 @@ impl Widget for CardWidget<'_> {
         // Border priority: feedback > selected > hinted > active > default
         let (border_type, border_style) = if let Some(result) = self.feedback {
             let fc = match result {
-                SetResult::Valid => RatColor::LightGreen,
-                SetResult::Invalid => RatColor::LightRed,
+                SetResult::Valid => RatColor::Rgb(80, 200, 120),
+                SetResult::Invalid => RatColor::Rgb(255, 107, 107),
             };
             (BorderType::Double, Style::default().fg(fc))
         } else if self.is_selected {
-            (BorderType::Double, Style::default().fg(RatColor::Green))
+            (BorderType::Double, Style::default().fg(RatColor::Rgb(46, 204, 113)))
         } else if self.is_hinted {
-            (BorderType::Double, Style::default().fg(RatColor::Cyan))
+            (BorderType::Double, Style::default().fg(RatColor::Rgb(0, 210, 211)))
         } else if self.is_active {
-            (BorderType::Double, Style::default().fg(RatColor::Yellow))
+            (BorderType::Double, Style::default().fg(RatColor::Rgb(241, 196, 15)))
         } else {
             (BorderType::Rounded, Style::default())
         };
 
-        let bg_color = RatColor::Black;
+        let bg_color = RatColor::Rgb(0, 0, 0);
 
         let block = Block::bordered()
             .border_type(border_type)
@@ -428,13 +425,10 @@ impl Widget for CardWidget<'_> {
             return;
         }
 
-        // Shape width: inner width minus 1 col padding on each side
         let shape_w = iw.saturating_sub(2).max(3);
 
-        // Each terminal row = 2 pixel rows (half-blocks).
-        // Fit `count` shapes + gaps into `ih` terminal rows.
         let (shape_pixel_h, gap): (usize, usize) = {
-            let needed_2row = count * 2 + count.saturating_sub(1); // 2-term-row shapes + 1-row gaps
+            let needed_2row = count * 2 + count.saturating_sub(1);
             let needed_2row_nogap = count * 2;
             let needed_1row = count + count.saturating_sub(1);
             if needed_2row <= ih {
@@ -448,7 +442,7 @@ impl Widget for CardWidget<'_> {
             }
         };
 
-        let shape_term_h = shape_pixel_h / 2; // 2 or 1
+        let shape_term_h = shape_pixel_h / 2;
         let total_term_h = count * shape_term_h + count.saturating_sub(1) * gap;
         let start_y = inner.y + (ih as u16).saturating_sub(total_term_h as u16) / 2;
         let start_x = inner.x + (iw as u16).saturating_sub(shape_w as u16) / 2;
