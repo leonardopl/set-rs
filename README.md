@@ -1,4 +1,4 @@
-# Pattern Match Game
+# set-rs
 
 A terminal and browser implementation of the [SET card game](https://en.wikipedia.org/wiki/Set_(card_game)) in Rust. Uses [ratatui](https://ratatui.rs) for rendering and [ratzilla](https://github.com/ratzilla-rs/ratzilla) for the web target.
 
