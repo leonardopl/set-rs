@@ -2,6 +2,8 @@
 
 A terminal and browser implementation of the [SET card game](https://en.wikipedia.org/wiki/Set_(card_game)) in Rust. Uses [ratatui](https://ratatui.rs) for rendering and [ratzilla](https://github.com/ratzilla-rs/ratzilla) for the web target.
 
+[**Play it in the browser**](https://leonardopl.github.io/set-rs/)
+
 ![screenshot](assets/screenshot.jpg)
 
 ## Features
