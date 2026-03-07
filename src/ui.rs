@@ -397,17 +397,17 @@ impl Widget for CardWidget<'_> {
 
         // Border priority: feedback > selected > hinted > active > default
         let (border_type, border_style) = if let Some(result) = self.feedback {
-            let fc = match result {
-                SetResult::Valid => RatColor::Rgb(80, 200, 120),
-                SetResult::Invalid => RatColor::Rgb(255, 107, 107),
+            let (fc, bc) = match result {
+                SetResult::Valid => (RatColor::Rgb(80, 200, 120), RatColor::Rgb(20, 60, 35)),
+                SetResult::Invalid => (RatColor::Rgb(255, 107, 107), RatColor::Rgb(80, 30, 30)),
             };
-            (BorderType::Double, Style::default().fg(fc))
+            (BorderType::Double, Style::default().fg(fc).bg(bc))
         } else if self.is_selected {
-            (BorderType::Double, Style::default().fg(RatColor::Rgb(46, 204, 113)))
+            (BorderType::Double, Style::default().fg(RatColor::Rgb(46, 204, 113)).bg(RatColor::Rgb(15, 60, 35)))
         } else if self.is_hinted {
-            (BorderType::Double, Style::default().fg(RatColor::Rgb(0, 210, 211)))
+            (BorderType::Double, Style::default().fg(RatColor::Rgb(0, 210, 211)).bg(RatColor::Rgb(0, 60, 60)))
         } else if self.is_active {
-            (BorderType::Double, Style::default().fg(RatColor::Rgb(241, 196, 15)))
+            (BorderType::Double, Style::default().fg(RatColor::Rgb(241, 196, 15)).bg(RatColor::Rgb(70, 55, 5)))
         } else {
             (BorderType::Rounded, Style::default())
         };
