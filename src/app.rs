@@ -24,6 +24,10 @@ impl App {
     pub fn quit(&mut self) {
         self.running = false;
     }
+
+    pub fn new_game(&mut self) {
+        self.game = Game::new();
+    }
 }
 
 #[cfg(feature = "terminal")]

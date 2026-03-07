@@ -64,8 +64,7 @@ pub fn handle_mouse_events(app: &mut App, mouse_event: MouseEvent) -> color_eyre
 pub fn handle_web_key_event(app: &mut App, key_event: ratzilla::event::KeyEvent) {
     use ratzilla::event::KeyCode;
     match key_event.code {
-        KeyCode::Esc | KeyCode::Char('q') => app.quit(),
-        KeyCode::Char('c') if key_event.ctrl => app.quit(),
+        KeyCode::Esc | KeyCode::Char('q') => app.new_game(),
         KeyCode::Left | KeyCode::Char('a') => app.game.move_focus(-1, 0),
         KeyCode::Right | KeyCode::Char('d') => app.game.move_focus(1, 0),
         KeyCode::Up | KeyCode::Char('w') => app.game.move_focus(0, -1),
@@ -91,7 +90,7 @@ pub fn handle_web_mouse_event(app: &mut App, mouse_event: ratzilla::event::Mouse
         MouseEventKind::Pressed => {
             if let Some(action) = app.game.button_at(x, y) {
                 match action {
-                    ButtonAction::Quit => app.quit(),
+                    ButtonAction::Quit => app.new_game(),
                     ButtonAction::Hint => app.game.show_hint(),
                     ButtonAction::AutoSelect => app.game.auto_select(),
                 }

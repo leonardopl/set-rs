@@ -108,9 +108,14 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
     }
 
     let quit_line = lines.len() as u16;
+    let (quit_label, quit_fg, quit_bg) = if cfg!(feature = "web") {
+        ("  New Game  ", RatColor::Rgb(0, 0, 0), RatColor::Rgb(80, 200, 120))
+    } else {
+        ("  Quit  ", RatColor::Rgb(255, 255, 255), RatColor::Rgb(192, 57, 43))
+    };
     lines.push(Line::from(Span::styled(
-        "  Quit  ",
-        Style::default().fg(RatColor::Rgb(255, 255, 255)).bg(RatColor::Rgb(192, 57, 43)),
+        quit_label,
+        Style::default().fg(quit_fg).bg(quit_bg),
     )));
     let quit_y = inner.y + quit_line;
     if quit_y < inner.y + inner.height {
@@ -127,7 +132,11 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
     lines.push(Line::from("Enter/Space: select"));
     lines.push(Line::from("h: hint"));
     lines.push(Line::from("f: auto select"));
-    lines.push(Line::from("q/Esc: quit"));
+    if cfg!(feature = "web") {
+        lines.push(Line::from("q/Esc: new game"));
+    } else {
+        lines.push(Line::from("q/Esc: quit"));
+    }
 
     Paragraph::new(lines).render(inner, buf);
 
