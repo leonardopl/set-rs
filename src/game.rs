@@ -11,6 +11,7 @@ const AUTO_SELECT_TICKS: u8 = 180; // ~3s at 60Hz
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ButtonAction {
+    NewGame,
     Quit,
     Hint,
     AutoSelect,
@@ -103,6 +104,30 @@ pub fn is_valid_set(a: &Card, b: &Card, c: &Card) -> bool {
         && valid_attr(a.number.as_index(), b.number.as_index(), c.number.as_index())
 }
 
+pub const MIN_CARD_WIDTH: u16 = 10;
+pub const MAX_CARD_WIDTH: u16 = 16;
+pub const MIN_CARD_HEIGHT: u16 = 11;
+pub const MAX_CARD_HEIGHT: u16 = 12;
+pub const NUM_ROWS: usize = 3;
+
+/// Computes the number of columns for a board with the given card count.
+pub fn desired_cols(board_len: usize) -> usize {
+    board_len.div_ceil(NUM_ROWS).max(1)
+}
+
+/// Returns the grid dimensions and card count that fit on one page at minimum card sizes.
+pub fn cards_per_page(width: u16, height: u16) -> (usize, usize, usize) {
+    let cols = (width / MIN_CARD_WIDTH).max(1) as usize;
+    let rows = ((height / MIN_CARD_HEIGHT) as usize).clamp(1, NUM_ROWS);
+    (cols, rows, cols * rows)
+}
+
+/// Returns the total number of pages needed to display all cards.
+pub fn total_pages(board_len: usize, width: u16, height: u16) -> usize {
+    let (_, _, per_page) = cards_per_page(width, height);
+    if per_page == 0 { 1 } else { board_len.div_ceil(per_page).max(1) }
+}
+
 pub fn find_set_in(board: &[Card]) -> Option<(usize, usize, usize)> {
     let len = board.len();
     for i in 0..len {
@@ -153,6 +178,7 @@ pub struct Game {
     pub last_result: Option<SetResult>,
     pub feedback_ticks_remaining: u8,
     pub last_checked: Vec<usize>,
+    pub show_focus: bool,
     pub last_input: InputMethod,
     pub card_areas: Vec<Rect>,
     pub button_areas: Vec<(ButtonAction, Rect)>,
@@ -161,6 +187,7 @@ pub struct Game {
     pub turn_start: Instant,
     pub term_cols: u16,
     pub term_rows: u16,
+    pub scroll_page: usize,
 }
 
 impl Default for Game {
@@ -195,6 +222,7 @@ impl Game {
             last_result: None,
             feedback_ticks_remaining: 0,
             last_checked: Vec::new(),
+            show_focus: false,
             last_input: InputMethod::default(),
             card_areas: Vec::new(),
             button_areas: Vec::new(),
@@ -203,6 +231,7 @@ impl Game {
             turn_start: Instant::now(),
             term_cols: 0,
             term_rows: 0,
+            scroll_page: 0,
         }
     }
 
@@ -224,17 +253,48 @@ impl Game {
 
     pub fn move_focus(&mut self, dx: i32, dy: i32) {
         self.last_input = InputMethod::Keyboard;
-        let cols = self.board.len().div_ceil(3) as i32;
-        let rows = 3i32;
-        let current_col = (self.focus % cols as usize) as i32;
-        let current_row = (self.focus / cols as usize) as i32;
+        self.show_focus = true;
 
-        let new_col = (current_col + dx).rem_euclid(cols) as usize;
-        let new_row = (current_row + dy).rem_euclid(rows) as usize;
+        let (page_cols, _, _) = cards_per_page(self.term_cols, self.term_rows);
+        if page_cols == 0 {
+            return;
+        }
 
-        let new_focus = new_row * cols as usize + new_col;
+
+        let logical_cols = desired_cols(self.board.len());
+        let total_rows = self.board.len().div_ceil(logical_cols) as i32;
+        let current_col = (self.focus % logical_cols) as i32;
+        let current_row = (self.focus / logical_cols) as i32;
+
+        let new_col = (current_col + dx).rem_euclid(logical_cols as i32);
+        let new_row = (current_row + dy).rem_euclid(total_rows);
+
+        let new_focus = (new_row as usize) * logical_cols + (new_col as usize);
         if new_focus < self.board.len() {
             self.focus = new_focus;
+            self.ensure_focus_visible();
+        }
+    }
+
+    fn ensure_focus_visible(&mut self) {
+        let (_, _, per_page) = cards_per_page(self.term_cols, self.term_rows);
+        if per_page == 0 {
+            return;
+        }
+        let focus_page = self.focus / per_page;
+        self.scroll_page = focus_page;
+    }
+
+    pub fn scroll_up(&mut self) {
+        if self.scroll_page > 0 {
+            self.scroll_page -= 1;
+        }
+    }
+
+    pub fn scroll_down(&mut self) {
+        let max_page = total_pages(self.board.len(), self.term_cols, self.term_rows).saturating_sub(1);
+        if self.scroll_page < max_page {
+            self.scroll_page += 1;
         }
     }
 
@@ -279,6 +339,13 @@ impl Game {
             self.feedback_ticks_remaining = FEEDBACK_TICKS;
             self.last_checked.clear();
             self.selected.clear();
+            match self.last_input {
+                InputMethod::Mouse => {
+                    self.show_focus = false;
+                    self.hover = None;
+                }
+                InputMethod::Keyboard => {}
+            }
             self.remove_and_deal(indices[0], indices[1], indices[2]);
             self.auto_deal();
         } else {
@@ -304,6 +371,8 @@ impl Game {
                 break;
             }
         }
+
+        self.scroll_page = 0;
 
         if !self.board.is_empty() && self.focus >= self.board.len() {
             self.focus = self.board.len() - 1;
@@ -369,8 +438,9 @@ impl Game {
 
     pub fn active_card_index(&self) -> Option<usize> {
         match self.last_input {
-            InputMethod::Keyboard => Some(self.focus),
+            InputMethod::Keyboard if self.show_focus => Some(self.focus),
             InputMethod::Mouse => self.hover,
+            _ => None,
         }
     }
 

@@ -4,7 +4,11 @@ A terminal and browser implementation of the [SET card game](https://en.wikipedi
 
 [**Play it in the browser**](https://leonardopl.github.io/set-rs/)
 
-![screenshot](assets/screenshot.jpg)
+<div align="center">
+  <img src="assets/screenshot_wide.png" alt="Desktop View" height="500" />
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <img src="assets/screenshot_narrow.png" alt="Mobile View" height="500" />
+</div>
 
 ## Features
 
@@ -19,11 +23,12 @@ A terminal and browser implementation of the [SET card game](https://en.wikipedi
 
 | Action         | Input                          |
 |----------------|--------------------------------|
-| Move           | Arrow keys / `W` `A` `S` `D`  |
+| Move           | Arrow keys / `w` `a` `s` `d`  |
 | Select card    | `Enter` / `Space`              |
-| Hint           | `H`                            |
-| Auto-select    | `F`                            |
-| Quit           | `Q` / `Esc`                    |
+| Hint           | `h`                            |
+| Auto-select    | `f`                            |
+| New game       | `n`                            |
+| Quit           | `q` (terminal only)            |
 
 Mouse clicks work on both cards and sidebar buttons.
 

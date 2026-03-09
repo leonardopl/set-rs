@@ -1,50 +1,73 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Constraint, Flex, Layout, Rect},
+    layout::{Constraint, Flex, Layout, Rect},
     style::{Color as RatColor, Style},
     text::{Line, Span},
     widgets::{Block, BorderType, Paragraph, Widget},
 };
 
 use crate::app::App;
-use crate::game::{ButtonAction, Card, Game, SetResult};
+use crate::game::{ButtonAction, Card, Game, MAX_CARD_HEIGHT, MAX_CARD_WIDTH, MIN_CARD_HEIGHT, MIN_CARD_WIDTH, NUM_ROWS, SetResult, cards_per_page, desired_cols, total_pages};
 
 pub fn render_app(app: &App, area: Rect, buf: &mut Buffer) -> (Vec<Rect>, Vec<(ButtonAction, Rect)>) {
     Block::default()
         .style(Style::default().bg(RatColor::Rgb(0, 0, 0)))
         .render(area, buf);
 
-    let layout = Layout::horizontal([
-        Constraint::Fill(1),
-        Constraint::Length(25),
-    ])
-    .split(area);
+    if area.width >= 70 {
+        // Wide mode: board + sidebar centered together
+        let sidebar_width: u16 = 14;
+        let board_cols = desired_cols(app.game.board.len()) as u16;
+        let max_board_width = board_cols * MAX_CARD_WIDTH;
 
-    let card_areas = render_board(&app.game, layout[0], buf);
-    let button_areas = render_info(&app.game, layout[1], buf);
-    (card_areas, button_areas)
+        let layout = Layout::horizontal([
+            Constraint::Max(max_board_width),
+            Constraint::Length(sidebar_width),
+        ])
+        .flex(Flex::Center)
+        .split(area);
+
+        let card_areas = render_board(&app.game, layout[0], buf);
+        let sidebar = if let Some(first) = card_areas.first() {
+            let dy = first.y.saturating_sub(layout[1].y);
+            Rect {
+                y: layout[1].y + dy,
+                height: layout[1].height.saturating_sub(dy),
+                ..layout[1]
+            }
+        } else {
+            layout[1]
+        };
+        let button_areas = render_info(&app.game, sidebar, buf);
+        (card_areas, button_areas)
+    } else {
+        // Narrow mode: board top, compact info bottom
+        let layout = Layout::vertical([
+            Constraint::Fill(1),
+            Constraint::Length(5),
+        ])
+        .split(area);
+
+        let card_areas = render_board(&app.game, layout[0], buf);
+        let button_areas = render_info_compact(&app.game, layout[1], buf);
+        (card_areas, button_areas)
+    }
 }
 
-fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, Rect)> {
-    let block = Block::bordered()
-        .title("Info")
-        .title_alignment(Alignment::Center)
-        .border_type(BorderType::Plain)
-        .padding(ratatui::widgets::Padding::uniform(1))
-        .style(Style::default().bg(RatColor::Rgb(0, 0, 0)));
+fn button_defs(game: &Game) -> Vec<(ButtonAction, &'static str, RatColor, RatColor)> {
+    let mut buttons = Vec::new();
+    if !game.is_game_over() {
+        buttons.push((ButtonAction::Hint, " Hint (h) ", RatColor::Rgb(0, 0, 0), RatColor::Rgb(0, 210, 211)));
+        buttons.push((ButtonAction::AutoSelect, " Auto (f) ", RatColor::Rgb(0, 0, 0), RatColor::Rgb(186, 85, 211)));
+    }
+    buttons.push((ButtonAction::NewGame, " New (n) ", RatColor::Rgb(0, 0, 0), RatColor::Rgb(80, 200, 120)));
+    if !cfg!(feature = "web") {
+        buttons.push((ButtonAction::Quit, " Quit (q) ", RatColor::Rgb(255, 255, 255), RatColor::Rgb(192, 57, 43)));
+    }
+    buttons
+}
 
-    let inner = block.inner(area);
-    block.render(area, buf);
-
-    let mut lines: Vec<Line> = Vec::new();
-    let mut button_areas: Vec<(ButtonAction, Rect)> = Vec::new();
-
-    lines.push(Line::from(format!("Score: {}", game.score)));
-    lines.push(Line::from(format!("Deck:  {}", game.deck_remaining())));
-    let elapsed = game.turn_start.elapsed().as_secs();
-    lines.push(Line::from(format!("Time:  {}:{:02}", elapsed / 60, elapsed % 60)));
-    lines.push(Line::from(""));
-
+fn push_result_line<'a>(game: &Game, lines: &mut Vec<Line<'a>>) {
     match game.last_result {
         Some(SetResult::Valid) => {
             lines.push(Line::from(Span::styled(
@@ -58,84 +81,124 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
                 Style::default().fg(RatColor::Rgb(255, 107, 107)),
             )));
         }
+        None if game.is_game_over() => {
+            lines.push(Line::from(Span::styled(
+                "Game Over!",
+                Style::default().fg(RatColor::Rgb(241, 196, 15)),
+            )));
+        }
         None => {
             lines.push(Line::from(""));
         }
     }
+}
 
-    lines.push(Line::from(""));
-
-    if game.is_game_over() {
-        lines.push(Line::from(Span::styled(
-            "Game Over!",
-            Style::default().fg(RatColor::Rgb(241, 196, 15)),
-        )));
-        lines.push(Line::from(""));
-    }
-
-    if !game.is_game_over() {
-        let hint_line = lines.len() as u16;
-        lines.push(Line::from(Span::styled(
-            "  Hint  ",
-            Style::default().fg(RatColor::Rgb(0, 0, 0)).bg(RatColor::Rgb(0, 210, 211)),
-        )));
-        let hint_y = inner.y + hint_line;
-        if hint_y < inner.y + inner.height {
-            button_areas.push((ButtonAction::Hint, Rect {
-                x: inner.x,
-                y: hint_y,
-                width: inner.width,
-                height: 1,
-            }));
-        }
-        lines.push(Line::from(""));
-
-        let auto_line = lines.len() as u16;
-        lines.push(Line::from(Span::styled(
-            "  Auto Select  ",
-            Style::default().fg(RatColor::Rgb(0, 0, 0)).bg(RatColor::Rgb(186, 85, 211)),
-        )));
-        let auto_y = inner.y + auto_line;
-        if auto_y < inner.y + inner.height {
-            button_areas.push((ButtonAction::AutoSelect, Rect {
-                x: inner.x,
-                y: auto_y,
-                width: inner.width,
-                height: 1,
-            }));
-        }
-        lines.push(Line::from(""));
-    }
-
-    let quit_line = lines.len() as u16;
-    let (quit_label, quit_fg, quit_bg) = if cfg!(feature = "web") {
-        ("  New Game  ", RatColor::Rgb(0, 0, 0), RatColor::Rgb(80, 200, 120))
-    } else {
-        ("  Quit  ", RatColor::Rgb(255, 255, 255), RatColor::Rgb(192, 57, 43))
+fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, Rect)> {
+    let inner = Rect {
+        x: area.x + 1,
+        y: area.y + 1,
+        width: area.width.saturating_sub(2),
+        height: area.height.saturating_sub(2),
     };
-    lines.push(Line::from(Span::styled(
-        quit_label,
-        Style::default().fg(quit_fg).bg(quit_bg),
-    )));
-    let quit_y = inner.y + quit_line;
-    if quit_y < inner.y + inner.height {
-        button_areas.push((ButtonAction::Quit, Rect {
-            x: inner.x,
-            y: quit_y,
-            width: inner.width,
-            height: 1,
-        }));
+
+    let mut lines: Vec<Line> = Vec::new();
+    let mut button_areas: Vec<(ButtonAction, Rect)> = Vec::new();
+
+    lines.push(Line::from(format!("Score: {}", game.score)));
+    lines.push(Line::from(format!("Deck:  {}", game.deck_remaining())));
+    let elapsed = game.turn_start.elapsed().as_secs();
+    lines.push(Line::from(format!("Time:  {}:{:02}", elapsed / 60, elapsed % 60)));
+    lines.push(Line::from(""));
+
+    push_result_line(game, &mut lines);
+    lines.push(Line::from(""));
+
+    for (action, label, fg, bg) in &button_defs(game) {
+        let btn_line = lines.len() as u16;
+        lines.push(Line::from(Span::styled(
+            *label,
+            Style::default().fg(*fg).bg(*bg),
+        )));
+        let btn_y = inner.y + btn_line;
+        if btn_y < inner.y + inner.height {
+            button_areas.push((*action, Rect {
+                x: inner.x,
+                y: btn_y,
+                width: inner.width,
+                height: 1,
+            }));
+        }
+        lines.push(Line::from(""));
     }
 
-    lines.push(Line::from(""));
-    lines.push(Line::from("Arrows/WASD: move"));
-    lines.push(Line::from("Enter/Space: select"));
-    lines.push(Line::from("h: hint"));
-    lines.push(Line::from("f: auto select"));
-    if cfg!(feature = "web") {
-        lines.push(Line::from("q/Esc: new game"));
-    } else {
-        lines.push(Line::from("q/Esc: quit"));
+    Paragraph::new(lines).render(inner, buf);
+
+    button_areas
+}
+
+fn render_info_compact(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, Rect)> {
+    let inner = Rect {
+        x: area.x + 1,
+        y: area.y + 1,
+        width: area.width.saturating_sub(2),
+        height: area.height.saturating_sub(2),
+    };
+
+    let mut lines: Vec<Line> = Vec::new();
+    let mut button_areas: Vec<(ButtonAction, Rect)> = Vec::new();
+
+    let elapsed = game.turn_start.elapsed().as_secs();
+    lines.push(Line::from(format!("Score: {}  Deck: {}  Time: {}:{:02}",
+        game.score, game.deck_remaining(), elapsed / 60, elapsed % 60)));
+
+    push_result_line(game, &mut lines);
+
+    let button_line = lines.len() as u16;
+    let button_y = inner.y + button_line;
+    let buttons = button_defs(game);
+
+    let mut spans: Vec<Span> = Vec::new();
+    let mut btn_positions: Vec<(ButtonAction, u16, u16)> = Vec::new();
+    let mut col = 0u16;
+    for (i, (action, label, fg, bg)) in buttons.iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::from("  "));
+            col += 2;
+        }
+        let label_len = label.len() as u16;
+        btn_positions.push((*action, col, label_len));
+        spans.push(Span::styled(*label, Style::default().fg(*fg).bg(*bg)));
+        col += label_len;
+    }
+    lines.push(Line::from(spans));
+
+    if button_y < inner.y + inner.height {
+        let n = btn_positions.len();
+        for i in 0..n {
+            let (action, start_col, width) = btn_positions[i];
+            let center = start_col + width / 2;
+
+            let left = if i == 0 {
+                0
+            } else {
+                let prev_center = btn_positions[i - 1].1 + btn_positions[i - 1].2 / 2;
+                (prev_center + center) / 2
+            };
+
+            let right = if i == n - 1 {
+                inner.width
+            } else {
+                let next_center = btn_positions[i + 1].1 + btn_positions[i + 1].2 / 2;
+                (center + next_center) / 2
+            };
+
+            button_areas.push((action, Rect {
+                x: inner.x + left,
+                y: button_y,
+                width: right.saturating_sub(left),
+                height: 1,
+            }));
+        }
     }
 
     Paragraph::new(lines).render(inner, buf);
@@ -144,35 +207,98 @@ fn render_info(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<(ButtonAction, 
 }
 
 fn render_board(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<Rect> {
-    let block = Block::bordered()
-        .title("set-rs")
-        .title_alignment(Alignment::Center)
-        .border_type(BorderType::Rounded)
-        .style(Style::default().bg(RatColor::Rgb(0, 0, 0)));
+    let inner = area;
+    if inner.width < MIN_CARD_WIDTH || inner.height < MIN_CARD_HEIGHT {
+        return vec![Rect::default(); game.board.len()];
+    }
 
-    let inner = block.inner(area);
-    block.render(area, buf);
+    // Check whether the ideal 3-row grid fits at minimum card sizes
+    let ideal_cols = desired_cols(game.board.len());
+    let fits_width = ideal_cols as u16 * MIN_CARD_WIDTH <= inner.width;
+    let fits_height = NUM_ROWS as u16 * MIN_CARD_HEIGHT <= inner.height;
+    let all_fit = fits_width && fits_height;
 
-    let num_cols = game.board.len().div_ceil(3).max(1);
-    let num_rows = 3u32;
-    let row_constraints: Vec<Constraint> = (0..num_rows)
-        .map(|_| Constraint::Ratio(1, num_rows))
+
+    let (page_cols, page_rows, per_page, num_pages, scroll);
+    if all_fit {
+        // All cards fit in a single page
+        page_cols = ideal_cols;
+        page_rows = NUM_ROWS;
+        per_page = page_cols * page_rows;
+        num_pages = 1;
+        scroll = 0;
+    } else {
+        // Paginate: pack as many cards as possible at minimum size
+        let (pc, pr, pp) = cards_per_page(inner.width, inner.height);
+        page_cols = pc;
+        page_rows = pr;
+        per_page = pp;
+        num_pages = total_pages(game.board.len(), inner.width, inner.height);
+        scroll = game.scroll_page.min(num_pages.saturating_sub(1));
+    }
+
+    let page_start = scroll * per_page;
+    let page_end = (page_start + per_page).min(game.board.len());
+    let cards_on_page = page_end - page_start;
+
+
+    let rows_needed = cards_on_page.div_ceil(page_cols).min(page_rows) as u16;
+    if rows_needed == 0 {
+        return vec![Rect::default(); game.board.len()];
+    }
+
+    // Distribute cards evenly across rows (e.g. 10 cards / 3 rows → 4-3-3 not 4-4-2)
+    let rn = rows_needed as usize;
+    let mut row_counts: Vec<usize> = Vec::with_capacity(rn);
+    {
+        let base = cards_on_page / rn;
+        let extra = cards_on_page % rn;
+        for i in 0..rn {
+            row_counts.push(base + if i < extra { 1 } else { 0 });
+        }
+    }
+
+    // Reserve space for scroll indicators when visible
+    let top_reserve: u16 = if num_pages > 1 && scroll > 0 { 1 } else { 0 };
+    let bot_reserve: u16 = if num_pages > 1 { 1 } else { 0 };
+    let card_area = Rect {
+        y: inner.y + top_reserve,
+        height: inner.height.saturating_sub(top_reserve + bot_reserve),
+        ..inner
+    };
+
+
+    let max_row_count = *row_counts.iter().max().unwrap_or(&page_cols);
+    let card_w = (card_area.width / max_row_count as u16).min(MAX_CARD_WIDTH).max(MIN_CARD_WIDTH);
+    let card_h = (card_area.height / rows_needed).clamp(MIN_CARD_HEIGHT, MAX_CARD_HEIGHT);
+
+    let row_constraints: Vec<Constraint> = (0..rows_needed)
+        .map(|_| Constraint::Length(card_h))
         .collect();
-    let rows = Layout::vertical(row_constraints).split(inner);
+    let rows = Layout::vertical(row_constraints)
+        .flex(Flex::Center)
+        .split(card_area);
 
-    let mut card_areas = Vec::with_capacity(game.board.len());
+    // Initialize with zero-size rects; populated below for visible cards
+    let mut card_areas = vec![Rect::default(); game.board.len()];
 
+    let mut card_offset = 0usize;
     for (row_idx, row_area) in rows.iter().enumerate() {
+        let row_card_count = row_counts[row_idx];
+        if row_card_count == 0 {
+            break;
+        }
+
         let col_constraints: Vec<Constraint> =
-            (0..num_cols).map(|_| Constraint::Max(16)).collect();
+            (0..row_card_count).map(|_| Constraint::Length(card_w)).collect();
         let cols = Layout::horizontal(col_constraints)
             .flex(Flex::Center)
             .split(*row_area);
 
         for (col_idx, col_area) in cols.iter().enumerate() {
-            let card_idx = row_idx * num_cols + col_idx;
-            card_areas.push(*col_area);
+            let card_idx = page_start + card_offset + col_idx;
             if card_idx < game.board.len() {
+                card_areas[card_idx] = *col_area;
                 let feedback = if game.last_checked.contains(&card_idx) {
                     game.last_result
                 } else {
@@ -186,6 +312,58 @@ fn render_board(game: &Game, area: Rect, buf: &mut Buffer) -> Vec<Rect> {
                     feedback,
                 };
                 card_widget.render(*col_area, buf);
+            }
+        }
+        card_offset += row_card_count;
+    }
+
+
+    if num_pages > 1 {
+        let arrow_fg = RatColor::Rgb(0, 210, 211);
+        let arrow_bg = RatColor::Rgb(0, 50, 55);
+        let page_fg = RatColor::Rgb(220, 220, 220);
+        let page_bg = RatColor::Rgb(40, 40, 50);
+
+
+        if scroll > 0 {
+            let arrow_str = "▲ ▲ ▲";
+            let arrow_len = arrow_str.chars().count() as u16;
+            let start_x = inner.x + inner.width.saturating_sub(arrow_len) / 2;
+            let up_y = inner.y + 1;
+            for (i, ch) in arrow_str.chars().enumerate() {
+                let x = start_x + i as u16;
+                if x < inner.x + inner.width && up_y < inner.y + inner.height {
+                    buf[(x, up_y)]
+                        .set_char(ch)
+                        .set_fg(arrow_fg)
+                        .set_bg(arrow_bg);
+                }
+            }
+        }
+
+        // Bottom line: combined down arrow + page counter, or page counter alone
+        let bottom_y = inner.y + inner.height - 1;
+        if bottom_y > inner.y {
+            let bottom_text = if scroll + 1 < num_pages {
+                format!("▼  {} / {}  ▼", scroll + 1, num_pages)
+            } else {
+                format!(" {} / {} ", scroll + 1, num_pages)
+            };
+            let text_len = bottom_text.chars().count() as u16;
+            let start_x = inner.x + inner.width.saturating_sub(text_len) / 2;
+            for (i, ch) in bottom_text.chars().enumerate() {
+                let x = start_x + i as u16;
+                if x < inner.x + inner.width {
+                    let (fg, bg) = if ch == '▼' {
+                        (arrow_fg, arrow_bg)
+                    } else {
+                        (page_fg, page_bg)
+                    };
+                    buf[(x, bottom_y)]
+                        .set_char(ch)
+                        .set_fg(fg)
+                        .set_bg(bg);
+                }
             }
         }
     }
@@ -251,7 +429,6 @@ fn rect_mask(width: usize, height: usize) -> Vec<Vec<CellKind>> {
     mask
 }
 
-/// Pointing-up triangle.
 fn triangle_mask(width: usize, height: usize) -> Vec<Vec<CellKind>> {
     let mut mask = vec![vec![CellKind::Outside; width]; height];
     let w = width as f64;
@@ -291,7 +468,6 @@ fn triangle_mask(width: usize, height: usize) -> Vec<Vec<CellKind>> {
     mask
 }
 
-/// Returns the pixel color for the given cell kind and fill, or None for background.
 fn pixel_color(
     kind: CellKind,
     fill: crate::game::Fill,
@@ -315,7 +491,7 @@ fn pixel_color(
     }
 }
 
-/// Renders two pixel rows into one terminal row via half-block characters.
+// Packs two pixel rows into one terminal row using half-block characters
 #[allow(clippy::too_many_arguments)]
 fn render_shape_row(
     top_row: &[CellKind],
@@ -346,7 +522,7 @@ fn render_shape_row(
                 if tc == bc {
                     cell.set_char(' ').set_bg(tc);
                 } else {
-                    // Use ▀ with fg=top, bg=bottom
+
                     cell.set_char('▀').set_fg(tc).set_bg(bc);
                 }
             }
