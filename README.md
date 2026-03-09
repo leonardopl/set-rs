@@ -5,9 +5,9 @@ A terminal and browser implementation of the [SET card game](https://en.wikipedi
 [**Play it in the browser**](https://leonardopl.github.io/set-rs/)
 
 <div align="center">
-  <img src="assets/screenshot_wide.png" alt="Desktop View" height="500" />
+  <img src="assets/screenshot_wide.png" alt="Desktop View" height="430" />
   &nbsp;&nbsp;&nbsp;&nbsp;
-  <img src="assets/screenshot_narrow.png" alt="Mobile View" height="500" />
+  <img src="assets/screenshot_narrow.png" alt="Mobile View" height="430" />
 </div>
 
 ## Features
